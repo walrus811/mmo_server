@@ -14,13 +14,19 @@ namespace ServerCore
         private object _lock = new object();
         private Socket _socket;
         int _disconnected = 0;
+
+        //세션과 1:1 관계라 이렇게 관리할 수 있음
+        //send 버퍼는 외부에서 놓아야 메모리 할당을 덜 할 수 있음
+        //가령 100명에게 하나의 정보를 보내려면 100개의 버퍼를 만들어야함
+        private RecvBuffer _recvBuffer = new RecvBuffer(1024);
+
         private SocketAsyncEventArgs _sendArgs = new SocketAsyncEventArgs();
         private SocketAsyncEventArgs _recvArgs = new SocketAsyncEventArgs();
-        private Queue<byte[]> _sendQueue = new Queue<byte[]>();
+        private Queue<ArraySegment<byte>> _sendQueue = new Queue<ArraySegment<byte>>();
         private List<ArraySegment<byte>> _pendingList = new List<ArraySegment<byte>>();
 
         public abstract void OnConnected(EndPoint endPoint);
-        public abstract void OnRecv(ArraySegment<byte> buffer);
+        public abstract int OnRecv(ArraySegment<byte> buffer);
         public abstract void OnSend(int numOfBytes);
         public abstract void OnDisconnected(EndPoint endPoint);
 
@@ -33,7 +39,7 @@ namespace ServerCore
             RegisterRecv();
         }
         
-        public void Send(byte[] sendBuff)
+        public void Send(ArraySegment<byte> sendBuff)
         {
             lock (_lock)
             {
@@ -60,7 +66,7 @@ namespace ServerCore
             while (_sendQueue.Count > 0)
             {
                 var buff = _sendQueue.Dequeue();
-                _pendingList.Add(new ArraySegment<byte>(buff,0, buff.Length));
+                _pendingList.Add(buff);
             }
 
             _sendArgs.BufferList = _pendingList;
@@ -101,6 +107,10 @@ namespace ServerCore
 
         private void RegisterRecv()
         {
+            _recvBuffer.Clean();
+            var segment = _recvBuffer.FreeSegment;
+            _recvArgs.SetBuffer(segment.Array, segment.Offset, segment.Count);
+
             var pending = _socket.ReceiveAsync(_recvArgs);
             if (!pending)
                 OnRecvCompleted(null, _recvArgs);
@@ -112,7 +122,27 @@ namespace ServerCore
             {
                 try
                 {
-                    OnRecv(new ArraySegment<byte>(args.Buffer, args.Offset, args.BytesTransferred));
+                    //Write 커서 이동
+                    if (!_recvBuffer.OnWrite(args.BytesTransferred))
+                    {
+                        Disconnect();
+                        return;
+                    }
+
+
+                    int processLen = OnRecv(_recvBuffer.DataSegment);
+                    if(processLen<0 || _recvBuffer.DataSize < processLen)
+                    {
+                        Disconnect();
+                        return;
+                    }
+
+                    if (!_recvBuffer.OnRead(processLen))
+                    {
+                        Disconnect();
+                        return;
+                    }
+
                     RegisterRecv();
                 }
                 catch(Exception ex)
