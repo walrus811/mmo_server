@@ -8,17 +8,17 @@ using System.Threading.Tasks;
 
 namespace ServerCore
 {
+    /* 연결 관리 */
     public class Listener
     {
-        public delegate void AcceptHandler(Socket sokcet);
-
         private Socket _listenSocket;
-        private event AcceptHandler _onAcceptHandler;
 
-        public void Init(IPEndPoint endPoint, AcceptHandler onAcceptHandler)
+        private Func<Session> sessionFactory;
+
+        public void Init(IPEndPoint endPoint, Func<Session> _sessionFactory)
         {
             _listenSocket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            _onAcceptHandler += onAcceptHandler;
+            sessionFactory = _sessionFactory;
             _listenSocket.Bind(endPoint);
             _listenSocket.Listen(10);
 
@@ -46,14 +46,14 @@ namespace ServerCore
         /*
          * 비동기기 떄문에 이제 이 부분은 크리티컬 섹션이 될 수 있는 영역이 되어버림.
          */
-        public void OnAcceptCompleted(object? sender, SocketAsyncEventArgs args)
+        public void OnAcceptCompleted(object sender, SocketAsyncEventArgs args)
         {
             if(args.SocketError == SocketError.Success)
             {
-                if(args.AcceptSocket!=null)
-                    _onAcceptHandler.Invoke(args.AcceptSocket);
-                else
-                    Console.WriteLine("There's no accept socket!");
+                /* 어차피 새 리스너를 받는 부분은 그렇게 자주 벌어지지 않아서 괜찮다는 거 아닐까?*/
+                var session = sessionFactory.Invoke();
+                session.Start(args.AcceptSocket);
+                session.OnConnected(args.AcceptSocket.RemoteEndPoint);
             }
             else
             {
