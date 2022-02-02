@@ -30,7 +30,8 @@ var ipAddr = ipHost.AddressList[0];
 var endPoint = new IPEndPoint(ipAddr, 7777);
 
 Console.WriteLine("Listening...");
-var listener=new Listener(endPoint, onAcceptHandler);
+var listener=new Listener();
+listener.Init(endPoint, onAcceptHandler);
 
 while (true)
 {
