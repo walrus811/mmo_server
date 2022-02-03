@@ -9,7 +9,7 @@ var endPoint = new IPEndPoint(ipAddr, 7777);
 
 Console.WriteLine("Listening...");
 var listener = new Listener();
-listener.Init(endPoint, () => new GameSession());
+listener.Init(endPoint, () => new ClientSession());
 
 while (true)
 {

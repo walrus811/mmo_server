@@ -11,7 +11,7 @@ var ipAddr = ipHost.AddressList[0];
 var endPoint = new IPEndPoint(ipAddr, 7777);
 
 var connector = new Connector();
-connector.Connect(endPoint, () => new ConnectSession());
+connector.Connect(endPoint, () => new ServerSession());
 
 while (true)
 {
