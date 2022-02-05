@@ -7,6 +7,8 @@ var ipHost = Dns.GetHostEntry(host);
 var ipAddr = ipHost.AddressList[0];
 var endPoint = new IPEndPoint(ipAddr, 7777);
 
+PacketManager.Instance.Register();
+
 Console.WriteLine("Listening...");
 var listener = new Listener();
 listener.Init(endPoint, () => new ClientSession());
